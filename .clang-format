@@ -1,0 +1,206 @@
+BasedOnStyle: Microsoft
+IndentWidth: 4
+ContinuationIndentWidth: 2
+ColumnLimit: 120
+MaxEmptyLinesToKeep: 2
+
+#Penalties
+
+---
+#C/Cpp
+Language: Cpp
+AccessModifierOffset: -2
+
+RequiresClausePosition: OwnLine
+RequiresExpressionIndentation: OuterScope
+
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: false
+SpaceAroundPointerQualifiers: Default
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon: false
+SpaceBeforeCpp11BracedList: true
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: false
+  AfterForeachMacros: false
+  AfterFunctionDeclarationName: false
+  AfterFunctionDefinitionName: false
+  AfterIfMacros: false
+  AfterOverloadedOperator: true
+
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceBeforeSquareBrackets: false
+SpaceInEmptyBlock: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles: Never
+SpacesInContainerLiterals: false
+SpacesInLineCommentPrefix:
+  Minimum: 1
+  Maximum: -1
+
+SpacesInParens: Custom
+SpacesInParensOptions:
+  InConditionalStatements: false
+  InCStyleCasts: false
+  InEmptyParentheses: false
+
+SpacesInSquareBrackets: false
+Standard: Latest
+TabWidth: 4
+UseTab: AlignWithSpaces
+
+#Alignement
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Right
+
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: true
+  PadOperators: false
+
+AlignConsecutiveBitFields:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: false
+
+AlignConsecutiveDeclarations: false
+
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+
+AlignConsecutiveShortCaseStatements:
+  Enabled: false
+  AcrossEmptyLines: true
+  AcrossComments: false
+  AlignCaseColons: true
+
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+AlignEscapedNewlines: Left
+AlignOperands: AlignAfterOperator
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 1
+
+QualifierAlignment: Custom
+QualifierOrder: [ volatile, static, inline, const, constexpr, type ]
+
+#Short Statements
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowBreakBeforeNoexceptSpecifier: Never
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+
+#Breaks
+AlwaysBreakBeforeMultilineStrings: false
+BinPackArguments: true
+BinPackParameters: false
+BreakBeforeBraces: Custom #Pretty much Allman
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: true
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+
+BreakAfterAttributes: Leave
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeConceptDeclarations: Always
+BreakBeforeInlineASMColon: OnlyMultiline
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: AfterComma
+BreakStringLiterals: true
+CompactNamespaces: false
+PackConstructorInitializers: BinPack
+
+ReflowComments: true
+
+#Empty Lines:
+EmptyLineBeforeAccessModifier: Always
+EmptyLineAfterAccessModifier: Never
+SeparateDefinitionBlocks: Leave
+
+#Indents
+IndentAccessModifiers: false
+IndentCaseBlocks: false
+IndentCaseLabels: true
+IndentExternBlock: AfterExternBlock
+IndentGotoLabels: true
+IndentPPDirectives: AfterHash
+IndentRequiresClause: false
+IndentWrappedFunctionNames: true
+InsertNewlineAtEOF: true
+LambdaBodyIndentation: Signature
+NamespaceIndentation: None
+PPIndentWidth: 2
+
+#Spaces
+BitFieldColonSpacing: Both
+Cpp11BracedListStyle: true
+
+#Edit
+LineEnding: DeriveCRLF
+#TODO: change when clang-format 19 available
+KeepEmptyLinesAtEOF: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+FixNamespaceComments: true
+
+#IntegerLiteralSeparator:
+#    Binary: 8
+#    Hex: 2
+#    Decimal: 3
+
+#Includes
+SortUsingDeclarations: LexicographicNumeric
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"(llvm|llvm-c|clang|clang-c)/'
+    Priority: 2
+    SortPriority: 2
+    CaseSensitive: true
+  - Regex: '^((<|")(gtest|gmock|isl|json)/)'
+    Priority: 3
+  - Regex: '<[[:alnum:].]+>'
+    Priority: 4
+  - Regex: '.*'
+    Priority: 1
+    SortPriority: 0
+
+#Macros
+AttributeMacros: [ __capability, __output, __unused ]
+ForEachMacros: [ RANGES_FOR, FOREACH ]
+IfMacros: [ IF ]
+
+---
+#TODO:
+Language: CSharp
+---
+Language: Verilog
+VerilogBreakBetweenInstancePorts: true
