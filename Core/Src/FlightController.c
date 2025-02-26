@@ -7,37 +7,109 @@
 
 #include "FlightController.h"
 
-#include "CRSF_Connection.h"
-#include "MPU6050.h"
-#include "PID.h"
+#include "ProcessControl.h"
+#include "SignalFiltering.h"
 
-#define THROTTLE CRSF_Channels.Ch3
-#define PITCH CRSF_Channels.Ch2
-#define ROLL CRSF_Channels.Ch1
-#define YAW CRSF_Channels.Ch4
-#define ARM CRSF_ArmStatus
 
-#define CHANNEL_MAX 1984
-#define CHANNEL_MIN 0
-#define CHANNEL_MIDPOINT ((CHANNEL_MAX - CHANNEL_MIN) / 2)
+typedef struct
+{
+	float Pitch;
+	float Roll;
+	float Yaw;
+	float Throttle;
 
-#define PITCH_LINEAR_RATE 200
-#define ROLL_LINEAR_RATE 200
-#define YAW_LINEAR_RATE 200
+	float Aux1;
+	float Aux2;
+	float Aux3;
+	float Aux4;
 
-#define THROTTLE_RESOLUTION 2048
-#define IDLE_THROTTLE 50
+	bool Arm;
+} FC_RC_Data_Instance;
 
-struct PID_State PitchRatePID;
-struct PID_State RollRatePID;
-struct PID_State YawRatePID;
+typedef struct
+{
+	float GyroX;
+	float GyroY;
+	float GyroZ;
 
-struct FC_MotorThrust FC_GlobalThrust;
-struct IMU_Data FC_IMUData;
+	float AccelX;
+	float AccelY;
+	float AccelZ;
 
-bool _manualDisarm = false;
+	float PitchAngle;
+	float RollAngle;
+} FC_IMU_Data_Instance;
 
-static uint16_t _clamp(uint16_t num, uint16_t max, uint16_t min)
+PID_Instance_f32 PitchRatePID;
+PID_Instance_f32 RollRatePID;
+PID_Instance_f32 YawRatePID;
+
+FC_MotorThrust FC_GlobalThrust;
+
+FC_IMU_Data_Instance FC_IMU_Data;
+FC_RC_Data_Instance FC_RC_Data;
+
+bool manualDisarm = false;
+
+
+// RC data filters
+#if FC_RC_AXIS_FILTER_ENABLE
+#  if FC_RC_AXIS_FILTER_TYPE == 1
+DSP_FIR_RT_Instance_f32 rcAxisPitchFilter;
+DSP_FIR_RT_Instance_f32 rcAxisRollFilter;
+DSP_FIR_RT_Instance_f32 rcAxisYawFilter;
+DSP_FIR_RT_Instance_f32 rcAxisThrottleFilter;
+#  endif
+
+#  if FC_RC_AXIS_FILTER_TYPE == 2
+DSP_IIR_RT_Instance_f32 rcAxisPitchFilter;
+DSP_IIR_RT_Instance_f32 rcAxisRollFilter;
+DSP_IIR_RT_Instance_f32 rcAxisYawFilter;
+DSP_IIR_RT_Instance_f32 rcAxisThrottleFilter;
+
+float rcAxisFilterPitchOutputBuff[FC_RC_AXIS_FILTER_ORDER];
+float rcAxisFilterRollOutputBuff[FC_RC_AXIS_FILTER_ORDER];
+float rcAxisFilterYawOutputBuff[FC_RC_AXIS_FILTER_ORDER];
+float rcAxisFilterThrottleOutputBuff[FC_RC_AXIS_FILTER_ORDER];
+
+float rcAxisFilterCoeffsA[FC_RC_AXIS_FILTER_ORDER];
+#  endif
+float rcAxisFilterCoeffsB[FC_RC_AXIS_FILTER_ORDER + 1];
+
+float rcAxisFilterPitchInputBuff[FC_RC_AXIS_FILTER_ORDER];
+float rcAxisFilterRollInputBuff[FC_RC_AXIS_FILTER_ORDER];
+float rcAxisFilterYawInputBuff[FC_RC_AXIS_FILTER_ORDER];
+float rcAxisFilterThrottleInputBuff[FC_RC_AXIS_FILTER_ORDER];
+#endif
+
+// IMU data filters
+#if FC_IMU_GYRO_FILTER_ENABLE
+#  if FC_IMU_GYRO_FILTER_TYPE == 1
+DSP_FIR_RT_Instance_f32 rcAxisPitchFilter;
+DSP_FIR_RT_Instance_f32 rcAxisRollFilter;
+DSP_FIR_RT_Instance_f32 rcAxisYawFilter;
+DSP_FIR_RT_Instance_f32 rcAxisThrottleFilter;
+#  endif
+
+#  if FC_IMU_GYRO_FILTER_TYPE == 2
+DSP_IIR_RT_Instance_f32 imuGyroXFilter;
+DSP_IIR_RT_Instance_f32 imuGyroYFilter;
+DSP_IIR_RT_Instance_f32 imuDataZFilter;
+
+float imuGyroXOutputBuff[FC_RC_AXIS_FILTER_ORDER];
+float imuGyroYOutputBuff[FC_RC_AXIS_FILTER_ORDER];
+float imuGyroZOutputBuff[FC_RC_AXIS_FILTER_ORDER];
+
+float imuGyroFilterCoeffsA[FC_RC_AXIS_FILTER_ORDER];
+#  endif
+float imuGyroFilterCoeffsB[FC_RC_AXIS_FILTER_ORDER + 1];
+
+float imuGyroXInputBuff[FC_RC_AXIS_FILTER_ORDER];
+float imuGyroYInputBuff[FC_RC_AXIS_FILTER_ORDER];
+float imuGyroZInputBuff[FC_RC_AXIS_FILTER_ORDER];
+#endif
+
+static uint32_t clamp(uint32_t num, uint32_t min, uint32_t max)
 {
 	const uint16_t t = num < min ? min : num;
 	return t > max ? max : t;
@@ -50,45 +122,65 @@ uint8_t FC_Init()
 	FC_GlobalThrust.Motor3 = 0;
 	FC_GlobalThrust.Motor4 = 0;
 
-	if(!PID_Init(&PitchRatePID, 3, 0, 0))
+	PID_Init_f32(&PitchRatePID, 3, 0, 0);
+
+	PitchRatePID.MaxOutput = FC_THROTTLE_RESOLUTION / 4;
+	PitchRatePID.MinOutput = -(FC_THROTTLE_RESOLUTION / 4);
+
+	PitchRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	PitchRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
+
+
+	PID_Init_f32(&RollRatePID, 3, 0, 0);
+
+	RollRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	RollRatePID.MinOutput = -(FC_THROTTLE_RESOLUTION / 4);
+
+	RollRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	RollRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
+
+
+	PID_Init_f32(&YawRatePID, 3, 0, 0);
+
+	YawRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	YawRatePID.MinOutput = -(FC_THROTTLE_RESOLUTION / 4);
+
+	YawRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	YawRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
+
+#if FC_RC_AXIS_FILTER_ENABLE
+	for(size_t i = 0; i < FC_RC_AXIS_FILTER_ORDER; i++)
 	{
-		return 3;
+		rcAxisFilterCoeffsB[i] = 0;
 	}
+	rcAxisFilterCoeffsB[FC_RC_AXIS_FILTER_ORDER] = 1;
 
-	PitchRatePID.MaxSaturation = THROTTLE_RESOLUTION / 4;
-	PitchRatePID.MinSaturation = -(THROTTLE_RESOLUTION / 4);
-
-	PitchRatePID.MaxWindup = THROTTLE_RESOLUTION / 4;
-	PitchRatePID.MinWindup = -(THROTTLE_RESOLUTION / 4);
-
-	if(!PID_Init(&RollRatePID, 3, 0, 0))
-	{
-		return 3;
-	}
-
-	RollRatePID.MaxSaturation = THROTTLE_RESOLUTION / 4;
-	RollRatePID.MinSaturation = -(THROTTLE_RESOLUTION / 4);
-
-	RollRatePID.MaxWindup = THROTTLE_RESOLUTION / 4;
-	RollRatePID.MinWindup = -(THROTTLE_RESOLUTION / 4);
-
-	if(!PID_Init(&YawRatePID, 3, 0, 0))
-	{
-		return 3;
-	}
-
-	YawRatePID.MaxSaturation = THROTTLE_RESOLUTION / 4;
-	YawRatePID.MinSaturation = -(THROTTLE_RESOLUTION / 4);
-
-	YawRatePID.MaxWindup = THROTTLE_RESOLUTION / 4;
-	YawRatePID.MinWindup = -(THROTTLE_RESOLUTION / 4);
+#  if FC_RC_AXIS_FILTER_TYPE == 1
+	DSP_FIR_RT_Init_f32(&rcAxisPitchFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB, rcAxisFilterPitchInputBuff);
+	DSP_FIR_RT_Init_f32(&rcAxisRollFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB, rcAxisFilterRollInputBuff);
+	DSP_FIR_RT_Init_f32(&rcAxisYawFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB, rcAxisFilterYawInputBuff);
+	DSP_FIR_RT_Init_f32(&rcAxisThrottleFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB,
+	                    rcAxisFilterThrottleInputBuff);
+#  endif
+#  if FC_RC_AXIS_FILTER_TYPE == 2
+	DSP_IIR_RT_Init_f32(&rcAxisPitchFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB, rcAxisFilterCoeffsA,
+	                    rcAxisFilterPitchInputBuff, rcAxisFilterPitchOutputBuff);
+	DSP_IIR_RT_Init_f32(&rcAxisRollFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB, rcAxisFilterCoeffsA,
+	                    rcAxisFilterRollInputBuff, rcAxisFilterRollOutputBuff);
+	DSP_IIR_RT_Init_f32(&rcAxisYawFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB, rcAxisFilterCoeffsA,
+	                    rcAxisFilterYawInputBuff, rcAxisFilterYawOutputBuff);
+	DSP_IIR_RT_Init_f32(&rcAxisThrottleFilter, FC_RC_AXIS_FILTER_ORDER, rcAxisFilterCoeffsB, rcAxisFilterCoeffsA,
+	                    rcAxisFilterThrottleInputBuff, rcAxisFilterThrottleOutputBuff);
+#  endif
+#endif
 
 	return 0;
 }
 
+
 void FC_Update(float dt)
 {
-	if(_manualDisarm || !ARM)
+	if(manualDisarm || !FC_RC_Data.Arm)
 	{
 		FC_GlobalThrust.Motor1 = 0;
 		FC_GlobalThrust.Motor2 = 0;
@@ -98,51 +190,47 @@ void FC_Update(float dt)
 		return;
 	}
 
-	float yaw = (YAW - CHANNEL_MIDPOINT) * YAW_LINEAR_RATE / CHANNEL_MIDPOINT;	    // deg/s
-	float pitch = (PITCH - CHANNEL_MIDPOINT)* PITCH_LINEAR_RATE / CHANNEL_MIDPOINT; // deg/s
-	float roll = (ROLL - CHANNEL_MIDPOINT) * ROLL_LINEAR_RATE / CHANNEL_MIDPOINT;   // deg/s
-	float throttle = THROTTLE * THROTTLE_RESOLUTION / CHANNEL_MAX;
 
-	float pitchRate = FC_IMUData.GyroX;
-	float rollRate = FC_IMUData.GyroY;
-	float yawRate = FC_IMUData.GyroZ;
+	const float pitchRate = FC_IMU_Data.GyroX;
+	const float rollRate  = FC_IMU_Data.GyroY;
+	const float yawRate   = FC_IMU_Data.GyroZ;
 
-	float pitchOffset = PID_Update(&PitchRatePID, pitch - pitchRate, dt) * 0.5;
-	float rollOffset = PID_Update(&RollRatePID, roll - rollRate, dt) * 0.5;
-	float yawOffset = PID_Update(&YawRatePID, yaw - yawRate, dt) * 0.5;
+	float pitchOffset = PID_Update_f32(&PitchRatePID, pitch - pitchRate, dt) * 0.5f;
+	float rollOffset  = PID_Update_f32(&RollRatePID, roll - rollRate, dt) * 0.5f;
+	float yawOffset   = PID_Update_f32(&YawRatePID, yaw - yawRate, dt) * 0.5f;
 
-	uint16_t m1 = throttle - pitchOffset - rollOffset - yawOffset;
-	uint16_t m2 = throttle - pitchOffset + rollOffset + yawOffset;
-	uint16_t m3 = throttle + pitchOffset - rollOffset + yawOffset;
-	uint16_t m4 = throttle + pitchOffset + rollOffset - yawOffset;
+	uint32_t m1 = (uint32_t)(throttle - pitchOffset - rollOffset - yawOffset);
+	uint32_t m2 = (uint32_t)(throttle - pitchOffset + rollOffset + yawOffset);
+	uint32_t m3 = (uint32_t)(throttle + pitchOffset - rollOffset + yawOffset);
+	uint32_t m4 = (uint32_t)(throttle + pitchOffset + rollOffset - yawOffset);
 
 	// Find max throttle
-	uint16_t max = m1 > m2? m1 : m2;
-	max = max > m3? max : m3;
-	max = max > m3? max : m4;
+	uint32_t max = m1 > m2 ? m1 : m2;
+	max          = max > m3 ? max : m3;
+	max          = max > m3 ? max : m4;
 
-	//Find min throttle
-	uint16_t min = m1 < m2? m1 : m2;
-	min = min < m3? min : m3;
-	min = min < m4? min : m4;
+	// Find min throttle
+	uint32_t min = m1 < m2 ? m1 : m2;
+	min          = min < m3 ? min : m3;
+	min          = min < m4 ? min : m4;
 
-	int16_t r = 0;
-	if(max > THROTTLE_RESOLUTION)
+	uint32_t r = 0;
+	if(max > FC_THROTTLE_RESOLUTION)
 	{
-		r = THROTTLE_RESOLUTION - max;
+		r = FC_THROTTLE_RESOLUTION - max;
 
-		if((min + r) < IDLE_THROTTLE)
+		if((min + r) < FC_IDLE_THROTTLE)
 		{
-			r += (IDLE_THROTTLE - (min + r)) / 2;
+			r += (FC_IDLE_THROTTLE - (min + r)) / 2;
 		}
 	}
-	else if(min < IDLE_THROTTLE)
+	else if(min < FC_IDLE_THROTTLE)
 	{
-		r = IDLE_THROTTLE - min;
+		r = FC_IDLE_THROTTLE - min;
 
-		if((max + r) > THROTTLE_RESOLUTION)
+		if((max + r) > FC_THROTTLE_RESOLUTION)
 		{
-			r += (THROTTLE_RESOLUTION - (max + r)) / 2;
+			r += (FC_THROTTLE_RESOLUTION - (max + r)) / 2;
 		}
 	}
 
@@ -151,23 +239,68 @@ void FC_Update(float dt)
 	m3 += r;
 	m4 += r;
 
-	FC_GlobalThrust.Motor1 = _clamp(m1, THROTTLE_RESOLUTION, IDLE_THROTTLE);
-	FC_GlobalThrust.Motor2 = _clamp(m2, THROTTLE_RESOLUTION, IDLE_THROTTLE);
-	FC_GlobalThrust.Motor3 = _clamp(m3, THROTTLE_RESOLUTION, IDLE_THROTTLE);
-	FC_GlobalThrust.Motor4 = _clamp(m4, THROTTLE_RESOLUTION, IDLE_THROTTLE);
+	FC_GlobalThrust.Motor1 = clamp(m1, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
+	FC_GlobalThrust.Motor2 = clamp(m2, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
+	FC_GlobalThrust.Motor3 = clamp(m3, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
+	FC_GlobalThrust.Motor4 = clamp(m4, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
 }
 
-void FC_ManualDisarm()
+void FC_EmergencyDisarm()
 {
-	_manualDisarm = true;
+	manualDisarm = true;
 
 	FC_GlobalThrust.Motor1 = 0;
 	FC_GlobalThrust.Motor2 = 0;
 	FC_GlobalThrust.Motor3 = 0;
 	FC_GlobalThrust.Motor4 = 0;
 }
-
-void FC_ManualArm()
+void FC_EmergencyRearm()
 {
-	_manualDisarm = false;
+	manualDisarm = false;
 }
+
+void FC_RC_UpdateAxisChannels(int throttle, int pitch, int roll, int yaw)
+{
+	FC_RC_Data.Pitch = (float)(pitch - FC_CHANNEL_MIDPOINT) * FC_PITCH_LINEAR_RATE / FC_CHANNEL_MIDPOINT;  // deg/s
+	FC_RC_Data.Roll  = (float)(roll - FC_CHANNEL_MIDPOINT) * FC_ROLL_LINEAR_RATE / FC_CHANNEL_MIDPOINT;    // deg/s
+	FC_RC_Data.Yaw   = (float)(yaw - FC_CHANNEL_MIDPOINT) * FC_YAW_LINEAR_RATE / FC_CHANNEL_MIDPOINT;      // deg/s
+	FC_RC_Data.Throttle =
+	  (float)(throttle - FC_CHANNEL_MIN) * FC_THROTTLE_RESOLUTION / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+
+#if FC_RC_AXIS_FILTER_ENABLE
+#  if FC_RC_AXIS_FILTER_TYPE == 1
+	FC_RC_Data.Pitch    = DSP_FIR_RT_Update_f32(&rcAxisPitchFilter, FC_RC_Data.Pitch);
+	FC_RC_Data.Roll     = DSP_FIR_RT_Update_f32(&rcAxisRollFilter, FC_RC_Data.Roll);
+	FC_RC_Data.Yaw      = DSP_FIR_RT_Update_f32(&rcAxisYawFilter, FC_RC_Data.Yaw);
+	FC_RC_Data.Throttle = DSP_FIR_RT_Update_f32(&rcAxisThrottleFilter, FC_RC_Data.Throttle);
+#  endif
+#  if FC_RC_AXIS_FILTER_TYPE == 2
+	FC_RC_Data.Pitch    = DSP_IIR_RT_Update_f32(&rcAxisPitchFilter, FC_RC_Data.Pitch);
+	FC_RC_Data.Roll     = DSP_IIR_RT_Update_f32(&rcAxisRollFilter, FC_RC_Data.Roll);
+	FC_RC_Data.Yaw      = DSP_IIR_RT_Update_f32(&rcAxisYawFilter, FC_RC_Data.Yaw);
+	FC_RC_Data.Throttle = DSP_IIR_RT_Update_f32(&rcAxisThrottleFilter, FC_RC_Data.Throttle);
+#  endif
+#endif
+}
+
+void FC_RC_UpdateAuxChannels(int aux1, int aux2, int aux3, int aux4)
+{
+	FC_RC_Data.Aux1 = (float)((aux1 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	FC_RC_Data.Aux2 = (float)((aux2 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	FC_RC_Data.Aux3 = (float)((aux3 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	FC_RC_Data.Aux4 = (float)((aux4 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+
+#if !FC_EXTERNAL_ARM_STATUS
+	FC_RC_Data.Arm = (bool)(FC_RC_Data.Aux1 > 90);
+#endif
+}
+
+void FC_RC_UpdateArmStatus(bool armStatus)
+{
+#if FC_EXTERNAL_ARM_STATUS
+	FC_RC_Data.Arm = armStatus;
+#endif
+}
+
+
+void FC_UpdateGyro(float pitchRate, float rollRate, float yawRate) {}
