@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 // If false, Aux1 channel controls arming
-#define FC_EXTERNAL_ARM_STATUS 0
+#define FC_EXTERNAL_ARM_STATUS 1
 
 #define FC_CHANNEL_MAX      1984
 #define FC_CHANNEL_MIN      0
