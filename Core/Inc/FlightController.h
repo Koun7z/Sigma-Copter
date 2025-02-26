@@ -8,7 +8,6 @@
 #ifndef INC_FLIGHTCONTROLLER_H_
 #define INC_FLIGHTCONTROLLER_H_
 
-#include "MPU6050.h"
 #include "ProcessControl.h"
 
 #include <stdint.h>
@@ -28,21 +27,21 @@
 #define FC_YAW_LINEAR_RATE   200
 
 // RC data filtering
-#define FC_RC_AXIS_FILTER_ENABLE 1
+#define FC_RC_AXIS_FILTER_ENABLE 0
 #define FC_RC_AXIS_FILTER_TYPE   2  // FIR = 1, IIR = 2
 #define FC_RC_AXIS_FILTER_ORDER  2
 
 // IMU data filtering
-#define FC_IMU_GYRO_FILTER_ENABLE 1
+#define FC_IMU_GYRO_FILTER_ENABLE 0
 #define FC_IMU_GYRO_FILTER_TYPE   2  // FIR = 1, IIR = 2
 #define FC_IMU_GYRO_FILTER_ORDER  2
 
 typedef struct
 {
-	uint32_t Motor1;  // FR
-	uint32_t Motor2;  // FL
-	uint32_t Motor3;  // RR
-	uint32_t Motor4;  // RL
+	int Motor1;  // FR
+	int Motor2;  // FL
+	int Motor3;  // RR
+	int Motor4;  // RL
 } FC_MotorThrust;
 
 extern PID_Instance_f32 PitchRatePID;
@@ -51,7 +50,7 @@ extern PID_Instance_f32 YawRatePID;
 
 extern FC_MotorThrust FC_GlobalThrust;
 
-uint8_t FC_Init();
+size_t FC_Init();
 
 void FC_Update(float dt);
 

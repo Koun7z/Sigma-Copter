@@ -109,13 +109,13 @@ float imuGyroYInputBuff[FC_RC_AXIS_FILTER_ORDER];
 float imuGyroZInputBuff[FC_RC_AXIS_FILTER_ORDER];
 #endif
 
-static uint32_t clamp_u32(uint32_t num, uint32_t min, uint32_t max)
+static int clamp(int num, int min, int max)
 {
-	const uint16_t t = num < min ? min : num;
+	const int t = num < min ? min : num;
 	return t > max ? max : t;
 }
 
-uint8_t FC_Init()
+size_t FC_Init()
 {
 	FC_GlobalThrust.Motor1 = 0;
 	FC_GlobalThrust.Motor2 = 0;
@@ -194,22 +194,22 @@ void FC_Update(float dt)
 	float rollOffset  = PID_Update_f32(&RollRatePID, rollCommand - rollRate, dt) * 0.5f;
 	float yawOffset   = PID_Update_f32(&YawRatePID, yawCommand - yawRate, dt) * 0.5f;
 
-	uint32_t m1 = (uint32_t)(throttleCommand - pitchOffset - rollOffset - yawOffset);
-	uint32_t m2 = (uint32_t)(throttleCommand - pitchOffset + rollOffset + yawOffset);
-	uint32_t m3 = (uint32_t)(throttleCommand + pitchOffset - rollOffset + yawOffset);
-	uint32_t m4 = (uint32_t)(throttleCommand + pitchOffset + rollOffset - yawOffset);
+	int m1 = (int)(throttleCommand - pitchOffset - rollOffset - yawOffset);
+	int m2 = (int)(throttleCommand - pitchOffset + rollOffset + yawOffset);
+	int m3 = (int)(throttleCommand + pitchOffset - rollOffset + yawOffset);
+	int m4 = (int)(throttleCommand + pitchOffset + rollOffset - yawOffset);
 
 	// Find max throttle
-	uint32_t max = m1 > m2 ? m1 : m2;
+	int max = m1 > m2 ? m1 : m2;
 	max          = max > m3 ? max : m3;
 	max          = max > m3 ? max : m4;
 
 	// Find min throttle
-	uint32_t min = m1 < m2 ? m1 : m2;
+	int min = m1 < m2 ? m1 : m2;
 	min          = min < m3 ? min : m3;
 	min          = min < m4 ? min : m4;
 
-	uint32_t r = 0;
+	int r = 0;
 	if(max > FC_THROTTLE_RESOLUTION)
 	{
 		r = FC_THROTTLE_RESOLUTION - max;
@@ -234,10 +234,10 @@ void FC_Update(float dt)
 	m3 += r;
 	m4 += r;
 
-	FC_GlobalThrust.Motor1 = clamp_u32(m1, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
-	FC_GlobalThrust.Motor2 = clamp_u32(m2, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
-	FC_GlobalThrust.Motor3 = clamp_u32(m3, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
-	FC_GlobalThrust.Motor4 = clamp_u32(m4, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
+	FC_GlobalThrust.Motor1 = clamp(m1, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
+	FC_GlobalThrust.Motor2 = clamp(m2, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
+	FC_GlobalThrust.Motor3 = clamp(m3, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
+	FC_GlobalThrust.Motor4 = clamp(m4, FC_IDLE_THROTTLE, FC_THROTTLE_RESOLUTION);
 }
 
 void FC_EmergencyDisarm()
@@ -301,7 +301,7 @@ void FC_RC_UpdateArmStatus(bool armStatus)
 }
 
 
-void FC_UpdateGyro(float pitchRate, float rollRate, float yawRate)
+void FC_IMU_UpdateGyro(float pitchRate, float rollRate, float yawRate)
 {
 #if FC_IMU_GYRO_FILTER_ENABLE
 #  if FC_IMU_GYRO_FILTER_TYPE == 1
