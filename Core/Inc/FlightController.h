@@ -27,12 +27,12 @@
 #define FC_YAW_LINEAR_RATE   200
 
 // RC data filtering
-#define FC_RC_AXIS_FILTER_ENABLE 0
+#define FC_RC_AXIS_FILTER_ENABLE 1
 #define FC_RC_AXIS_FILTER_TYPE   2  // FIR = 1, IIR = 2
 #define FC_RC_AXIS_FILTER_ORDER  2
 
 // IMU data filtering
-#define FC_IMU_GYRO_FILTER_ENABLE 0
+#define FC_IMU_GYRO_FILTER_ENABLE 1
 #define FC_IMU_GYRO_FILTER_TYPE   2  // FIR = 1, IIR = 2
 #define FC_IMU_GYRO_FILTER_ORDER  2
 
@@ -43,10 +43,6 @@ typedef struct
 	int Motor3;  // RR
 	int Motor4;  // RL
 } FC_MotorThrust;
-
-extern PID_Instance_f32 PitchRatePID;
-extern PID_Instance_f32 RollRatePID;
-extern PID_Instance_f32 YawRatePID;
 
 extern FC_MotorThrust FC_GlobalThrust;
 
@@ -61,11 +57,11 @@ void FC_RC_UpdateAxisChannels(int throttle, int pitch, int roll, int yaw);
 void FC_RC_UpdateAuxChannels(int aux1, int aux2, int aux3, int aux4);
 void FC_RC_UpdateArmStatus(bool armStatus);
 
-bool FC_RC_SetFilter(size_t filterOrder, float* filterCoeffsNumerator, float* filterCoeffsDenominator);
+void FC_RC_SetFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator);
 
 void FC_IMU_UpdateGyro(float pitchRate, float rollRate, float yawRate);
 
-bool FC_IMU_SetGyroFilter(size_t filterOrder, float* filterCoeffsNumerator, float* filterCoeffsDenominator);
+void FC_IMU_SetGyroFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator);
 
 void FC_IMU_UpdateAccel(float pitchRate, float rollRate, float yawRate);
 

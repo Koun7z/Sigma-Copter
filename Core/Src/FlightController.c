@@ -10,6 +10,7 @@
 #include "ProcessControl.h"
 #include "SignalFiltering.h"
 
+#include <string.h>
 
 typedef struct
 {
@@ -40,9 +41,10 @@ typedef struct
 	float RollAngle;
 } FC_IMU_Data_Instance;
 
-PID_Instance_f32 PitchRatePID;
-PID_Instance_f32 RollRatePID;
-PID_Instance_f32 YawRatePID;
+
+PID_Instance_f32 FC_PitchRatePID;
+PID_Instance_f32 FC_RollRatePID;
+PID_Instance_f32 FC_YawRatePID;
 
 FC_MotorThrust FC_GlobalThrust;
 
@@ -50,7 +52,6 @@ FC_IMU_Data_Instance FC_IMU_Data;
 FC_RC_Data_Instance FC_RC_Data;
 
 bool manualDisarm = false;
-
 
 // RC data filters
 #if FC_RC_AXIS_FILTER_ENABLE
@@ -87,14 +88,14 @@ float rcAxisFilterThrottleInputBuff[FC_RC_AXIS_FILTER_ORDER];
 #  if FC_IMU_GYRO_FILTER_TYPE == 1
 DSP_FIR_RT_Instance_f32 imuGyroXFilter;
 DSP_FIR_RT_Instance_f32 imuGyroYFilter;
-DSP_FIR_RT_Instance_f32 imuDataZFilter;
+DSP_FIR_RT_Instance_f32 imuGyroZFilter;
 
 #  endif
 
 #  if FC_IMU_GYRO_FILTER_TYPE == 2
 DSP_IIR_RT_Instance_f32 imuGyroXFilter;
 DSP_IIR_RT_Instance_f32 imuGyroYFilter;
-DSP_IIR_RT_Instance_f32 imuDataZFilter;
+DSP_IIR_RT_Instance_f32 imuGyroZFilter;
 
 float imuGyroXOutputBuff[FC_RC_AXIS_FILTER_ORDER];
 float imuGyroYOutputBuff[FC_RC_AXIS_FILTER_ORDER];
@@ -122,22 +123,22 @@ size_t FC_Init()
 	FC_GlobalThrust.Motor3 = 0;
 	FC_GlobalThrust.Motor4 = 0;
 
-	PID_Init_f32(&PitchRatePID, 3, 0, 0);
+	PID_Init_f32(&FC_PitchRatePID, 3, 0, 0);
 
-	PitchRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
-	PitchRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
-
-
-	PID_Init_f32(&RollRatePID, 3, 0, 0);
-
-	RollRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
-	RollRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
+	FC_PitchRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	FC_PitchRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
 
 
-	PID_Init_f32(&YawRatePID, 3, 0, 0);
+	PID_Init_f32(&FC_RollRatePID, 3, 0, 0);
 
-	YawRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
-	YawRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
+	FC_RollRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	FC_RollRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
+
+
+	PID_Init_f32(&FC_YawRatePID, 3, 0, 0);
+
+	FC_YawRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
+	FC_YawRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
 
 #if FC_RC_AXIS_FILTER_ENABLE
 	for(size_t i = 0; i < FC_RC_AXIS_FILTER_ORDER; i++)
@@ -165,6 +166,29 @@ size_t FC_Init()
 #  endif
 #endif
 
+
+#if FC_IMU_GYRO_FILTER_ENABLE
+	for(size_t i = 0; i < FC_RC_AXIS_FILTER_ORDER; i++)
+	{
+		imuGyroFilterCoeffsB[i] = 0;
+	}
+	imuGyroFilterCoeffsB[FC_RC_AXIS_FILTER_ORDER] = 1;
+
+#  if FC_IMU_GYRO_FILTER_TYPE == 1
+	DSP_FIR_RT_Init_f32(&imuGyroXFilter, FC_IMU_GYRO_FILTER_ORDER, imuGyroFilterCoeffsB, imuGyroXInputBuff);
+	DSP_FIR_RT_Init_f32(&imuGyroYFilter, FC_IMU_GYRO_FILTER_ORDER, imuGyroFilterCoeffsB, imuGyroYInputBuff);
+	DSP_FIR_RT_Init_f32(&imuGyroZFilter, FC_IMU_GYRO_FILTER_ORDER, imuGyroFilterCoeffsB, imuGyroZInputBuff);
+#  endif
+
+#  if FC_IMU_GYRO_FILTER_TYPE == 2
+	DSP_IIR_RT_Init_f32(&imuGyroXFilter, FC_IMU_GYRO_FILTER_ORDER, imuGyroFilterCoeffsB, imuGyroFilterCoeffsA,
+	                    imuGyroXInputBuff, imuGyroXOutputBuff);
+	DSP_IIR_RT_Init_f32(&imuGyroYFilter, FC_IMU_GYRO_FILTER_ORDER, imuGyroFilterCoeffsB, imuGyroFilterCoeffsA,
+	                    imuGyroYInputBuff, imuGyroYOutputBuff);
+	DSP_IIR_RT_Init_f32(&imuGyroZFilter, FC_IMU_GYRO_FILTER_ORDER, imuGyroFilterCoeffsB, imuGyroFilterCoeffsA,
+	                    imuGyroZInputBuff, imuGyroZOutputBuff);
+#  endif
+#endif
 	return 0;
 }
 
@@ -181,18 +205,18 @@ void FC_Update(float dt)
 		return;
 	}
 
-	const float pitchCommand = FC_RC_Data.Pitch;
-	const float rollCommand = FC_RC_Data.Roll;
-	const float yawCommand = FC_RC_Data.Yaw;
+	const float pitchCommand    = FC_RC_Data.Pitch;
+	const float rollCommand     = FC_RC_Data.Roll;
+	const float yawCommand      = FC_RC_Data.Yaw;
 	const float throttleCommand = FC_RC_Data.Throttle;
 
 	const float pitchRate = FC_IMU_Data.GyroX;
 	const float rollRate  = FC_IMU_Data.GyroY;
 	const float yawRate   = FC_IMU_Data.GyroZ;
 
-	float pitchOffset = PID_Update_f32(&PitchRatePID, pitchCommand - pitchRate, dt) * 0.5f;
-	float rollOffset  = PID_Update_f32(&RollRatePID, rollCommand - rollRate, dt) * 0.5f;
-	float yawOffset   = PID_Update_f32(&YawRatePID, yawCommand - yawRate, dt) * 0.5f;
+	float pitchOffset = PID_Update_f32(&FC_PitchRatePID, pitchCommand - pitchRate, dt) * 0.5f;
+	float rollOffset  = PID_Update_f32(&FC_RollRatePID, rollCommand - rollRate, dt) * 0.5f;
+	float yawOffset   = PID_Update_f32(&FC_YawRatePID, yawCommand - yawRate, dt) * 0.5f;
 
 	int m1 = (int)(throttleCommand - pitchOffset - rollOffset - yawOffset);
 	int m2 = (int)(throttleCommand - pitchOffset + rollOffset + yawOffset);
@@ -201,13 +225,13 @@ void FC_Update(float dt)
 
 	// Find max throttle
 	int max = m1 > m2 ? m1 : m2;
-	max          = max > m3 ? max : m3;
-	max          = max > m3 ? max : m4;
+	max     = max > m3 ? max : m3;
+	max     = max > m3 ? max : m4;
 
 	// Find min throttle
 	int min = m1 < m2 ? m1 : m2;
-	min          = min < m3 ? min : m3;
-	min          = min < m4 ? min : m4;
+	min     = min < m3 ? min : m3;
+	min     = min < m4 ? min : m4;
 
 	int r = 0;
 	if(max > FC_THROTTLE_RESOLUTION)
@@ -275,18 +299,15 @@ void FC_RC_UpdateAxisChannels(int throttle, int pitch, int roll, int yaw)
 	FC_RC_Data.Yaw      = DSP_IIR_RT_Update_f32(&rcAxisYawFilter, FC_RC_Data.Yaw);
 	FC_RC_Data.Throttle = DSP_IIR_RT_Update_f32(&rcAxisThrottleFilter, FC_RC_Data.Throttle);
 #  endif
-
-#else
-
 #endif
 }
 
 void FC_RC_UpdateAuxChannels(int aux1, int aux2, int aux3, int aux4)
 {
-	FC_RC_Data.Aux1 = (float)((aux1 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
-	FC_RC_Data.Aux2 = (float)((aux2 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
-	FC_RC_Data.Aux3 = (float)((aux3 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
-	FC_RC_Data.Aux4 = (float)((aux4 - FC_CHANNEL_MIN) * 100) / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	FC_RC_Data.Aux1 = (float)(aux1 - FC_CHANNEL_MIN) * 100 / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	FC_RC_Data.Aux2 = (float)(aux2 - FC_CHANNEL_MIN) * 100 / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	FC_RC_Data.Aux3 = (float)(aux3 - FC_CHANNEL_MIN) * 100 / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	FC_RC_Data.Aux4 = (float)(aux4 - FC_CHANNEL_MIN) * 100 / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
 
 #if !FC_EXTERNAL_ARM_STATUS
 	FC_RC_Data.Arm = (bool)(FC_RC_Data.Aux1 > 90);
@@ -297,6 +318,25 @@ void FC_RC_UpdateArmStatus(bool armStatus)
 {
 #if FC_EXTERNAL_ARM_STATUS
 	FC_RC_Data.Arm = armStatus;
+#endif
+}
+void FC_RC_SetFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator)
+{
+#if FC_RC_AXIS_FILTER_ENABLE
+#  if FC_RC_AXIS_FILTER_TYPE == 1
+
+	memcpy(rcAxisFilterCoeffsB, filterCoeffsNumerator, (FC_RC_AXIS_FILTER_ORDER + 1) * sizeof(float));
+	DSP_ReverseArray_f32(rcAxisFilterCoeffsB, FC_RC_AXIS_FILTER_ORDER + 1);
+
+#  endif
+#  if FC_RC_AXIS_FILTER_TYPE == 2
+
+	memcpy(rcAxisFilterCoeffsB, filterCoeffsNumerator, (FC_RC_AXIS_FILTER_ORDER + 1) * sizeof(float));
+	memcpy(rcAxisFilterCoeffsA, filterCoeffsDenominator, FC_RC_AXIS_FILTER_ORDER * sizeof(float));
+
+	DSP_ReverseArray_f32(rcAxisFilterCoeffsB, FC_RC_AXIS_FILTER_ORDER + 1);
+	DSP_ReverseArray_f32(rcAxisFilterCoeffsA, FC_RC_AXIS_FILTER_ORDER);
+#  endif
 #endif
 }
 
@@ -324,5 +364,21 @@ void FC_IMU_UpdateGyro(float pitchRate, float rollRate, float yawRate)
 	FC_IMU_Data.GyroY = pitchRate;
 	FC_IMU_Data.GyroZ = yawRate;
 
+#endif
+}
+void FC_IMU_SetGyroFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator)
+{
+#if FC_IMU_GYRO_FILTER_ENABLE
+#  if FC_IMU_GYRO_FILTER_TYPE == 1
+	memcpy(imuGyroFilterCoeffsB, filterCoeffsNumerator, (FC_RC_AXIS_FILTER_ORDER + 1) * sizeof(float));
+	DSP_ReverseArray_f32(imuGyroFilterCoeffsB, FC_RC_AXIS_FILTER_ORDER + 1);
+#  endif
+#  if FC_IMU_GYRO_FILTER_TYPE == 2
+	memcpy(imuGyroFilterCoeffsB, filterCoeffsNumerator, (FC_RC_AXIS_FILTER_ORDER + 1) * sizeof(float));
+	memcpy(imuGyroFilterCoeffsA, filterCoeffsDenominator, FC_RC_AXIS_FILTER_ORDER * sizeof(float));
+
+	DSP_ReverseArray_f32(imuGyroFilterCoeffsB, FC_RC_AXIS_FILTER_ORDER + 1);
+	DSP_ReverseArray_f32(imuGyroFilterCoeffsA, FC_RC_AXIS_FILTER_ORDER);
+#  endif
 #endif
 }
