@@ -15,9 +15,9 @@
 // If false, Aux1 channel controls arming
 #define FC_EXTERNAL_ARM_STATUS 1
 
-#define FC_CHANNEL_MAX      1984
-#define FC_CHANNEL_MIN      0
-#define FC_CHANNEL_MIDPOINT ((FC_CHANNEL_MAX - FC_CHANNEL_MIN) / 2)
+#define FC_CHANNEL_MAX      1812
+#define FC_CHANNEL_MIN      172
+#define FC_CHANNEL_MIDPOINT ((FC_CHANNEL_MAX + FC_CHANNEL_MIN) / 2)
 
 #define FC_THROTTLE_RESOLUTION 2048
 #define FC_IDLE_THROTTLE       50
@@ -44,7 +44,41 @@ typedef struct
 	int Motor4;  // RL
 } FC_MotorThrust;
 
+typedef struct
+{
+	float Pitch;
+	float Roll;
+	float Yaw;
+	float Throttle;
+
+	float Aux1;
+	float Aux2;
+	float Aux3;
+	float Aux4;
+
+	bool Arm;
+} FC_RC_Data_Instance;
+
+typedef struct
+{
+	float GyroX;
+	float GyroY;
+	float GyroZ;
+
+	float AccelX;
+	float AccelY;
+	float AccelZ;
+
+	float PitchAngle;
+	float RollAngle;
+} FC_IMU_Data_Instance;
+
+
+extern FC_IMU_Data_Instance FC_IMU_Data;
+extern FC_RC_Data_Instance FC_RC_Data;
+
 extern FC_MotorThrust FC_GlobalThrust;
+
 
 size_t FC_Init();
 

@@ -12,36 +12,6 @@
 
 #include <string.h>
 
-typedef struct
-{
-	float Pitch;
-	float Roll;
-	float Yaw;
-	float Throttle;
-
-	float Aux1;
-	float Aux2;
-	float Aux3;
-	float Aux4;
-
-	bool Arm;
-} FC_RC_Data_Instance;
-
-typedef struct
-{
-	float GyroX;
-	float GyroY;
-	float GyroZ;
-
-	float AccelX;
-	float AccelY;
-	float AccelZ;
-
-	float PitchAngle;
-	float RollAngle;
-} FC_IMU_Data_Instance;
-
-
 PID_Instance_f32 FC_PitchRatePID;
 PID_Instance_f32 FC_RollRatePID;
 PID_Instance_f32 FC_YawRatePID;
@@ -210,13 +180,13 @@ void FC_Update(float dt)
 	const float yawCommand      = FC_RC_Data.Yaw;
 	const float throttleCommand = FC_RC_Data.Throttle;
 
-	const float pitchRate = FC_IMU_Data.GyroX;
-	const float rollRate  = FC_IMU_Data.GyroY;
+	const float pitchRate = FC_IMU_Data.GyroY;
+	const float rollRate  = FC_IMU_Data.GyroX;
 	const float yawRate   = FC_IMU_Data.GyroZ;
 
-	float pitchOffset = PID_Update_f32(&FC_PitchRatePID, pitchCommand - pitchRate, dt) * 0.5f;
-	float rollOffset  = PID_Update_f32(&FC_RollRatePID, rollCommand - rollRate, dt) * 0.5f;
-	float yawOffset   = PID_Update_f32(&FC_YawRatePID, yawCommand - yawRate, dt) * 0.5f;
+	const float pitchOffset = PID_Update_f32(&FC_PitchRatePID, pitchCommand - pitchRate, dt) * 0.5f;
+	const float rollOffset  = PID_Update_f32(&FC_RollRatePID, rollCommand - rollRate, dt) * 0.5f;
+	const float yawOffset   = PID_Update_f32(&FC_YawRatePID, yawCommand - yawRate, dt) * 0.5f;
 
 	int m1 = (int)(throttleCommand - pitchOffset - rollOffset - yawOffset);
 	int m2 = (int)(throttleCommand - pitchOffset + rollOffset + yawOffset);
@@ -233,6 +203,8 @@ void FC_Update(float dt)
 	min     = min < m3 ? min : m3;
 	min     = min < m4 ? min : m4;
 
+
+	//Adjust for min/max throttle values to maintain motor offset
 	int r = 0;
 	if(max > FC_THROTTLE_RESOLUTION)
 	{
@@ -355,7 +327,7 @@ void FC_IMU_UpdateGyro(float pitchRate, float rollRate, float yawRate)
 
 	FC_IMU_Data.GyroX = DSP_IIR_RT_Update_f32(&imuGyroXFilter, rollRate);
 	FC_IMU_Data.GyroY = DSP_IIR_RT_Update_f32(&imuGyroYFilter, pitchRate);
-	FC_IMU_Data.GyroZ = DSP_IIR_RT_Update_f32(&imuGyroYFilter, yawRate);
+	FC_IMU_Data.GyroZ = DSP_IIR_RT_Update_f32(&imuGyroZFilter, yawRate);
 
 #  endif
 #else
