@@ -1,9 +1,9 @@
 /*
- * FlightController.h
- *
- *  Created on: Jan 28, 2025
- *      Author: pwoli
- */
+** FlightController.h
+**
+**  Created on: Jan 28, 2025
+**      Author: pwoli
+*/
 
 #ifndef INC_FLIGHTCONTROLLER_H_
 #define INC_FLIGHTCONTROLLER_H_
@@ -20,7 +20,7 @@ extern FC_RC_Data_Instance FC_RC_Data;
 extern FC_IMU_Data_Instance FC_IMU_Data;
 
 
-size_t FC_Init();
+uint8_t FC_Init(void);
 
 void FC_Update(float dt);
 
@@ -28,7 +28,7 @@ void FC_EmergencyDisarm(void);
 
 void FC_EmergencyRearm(void);
 
-void FC_FiltersInit(void);
+void FC_DataAcquisitionInit(void);
 
 void FC_RC_UpdateAxisChannels(int throttle, int pitch, int roll, int yaw);
 
@@ -38,10 +38,12 @@ void FC_RC_UpdateArmStatus(bool armStatus);
 
 void FC_RC_SetFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator);
 
-void FC_IMU_UpdateGyro(float pitchRate, float rollRate, float yawRate);
+void FC_IMU_UpdateGyro(float pitchRate, float rollRate, float yawRate, float dt);
 
 void FC_IMU_SetGyroFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator);
 
-void FC_IMU_UpdateAccel(float pitchRate, float rollRate, float yawRate);
+void FC_IMU_UpdateAccel(float accelX, float accelY, float accelZ, float dt);
+
+void FC_IMU_SetAccelFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator);
 
 #endif /* INC_FLIGHTCONTROLLER_H_ */

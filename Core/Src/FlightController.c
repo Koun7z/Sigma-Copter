@@ -27,7 +27,7 @@ static int clamp(int num, int min, int max)
 	return t > max ? max : t;
 }
 
-size_t FC_Init()
+uint8_t FC_Init()
 {
 	FC_GlobalThrust.Motor1 = 0;
 	FC_GlobalThrust.Motor2 = 0;
@@ -51,7 +51,7 @@ size_t FC_Init()
 	// FC_YawRatePID.MaxWindup = FC_THROTTLE_RESOLUTION / 4;
 	// FC_YawRatePID.MinWindup = -(FC_THROTTLE_RESOLUTION / 4);
 
-	FC_FiltersInit();
+	FC_DataAcquisitionInit();
 	return 0;
 }
 
@@ -95,7 +95,6 @@ void FC_Update(float dt)
 	int min = m1 < m2 ? m1 : m2;
 	min     = min < m3 ? min : m3;
 	min     = min < m4 ? min : m4;
-
 
 	// Adjust for min/max throttle values to maintain motor offset
 	int r = 0;

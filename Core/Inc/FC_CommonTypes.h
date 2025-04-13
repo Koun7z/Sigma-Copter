@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 
+#include "Quaternion.h"
+
 typedef struct
 {
 	int Motor1;  // FR
@@ -40,11 +42,7 @@ typedef struct
 	float AccelY;
 	float AccelZ;
 
-	float PitchAngle;
-	float RollAngle;
-
-	float I_Velocity;
-	float J_Velocity;
+	DSP_Quaternion_f32 Attitude;
 } FC_IMU_Data_Instance;
 
 #endif //FC_COMMONTYPES_H
