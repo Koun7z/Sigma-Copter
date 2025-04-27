@@ -4,7 +4,9 @@
 
 #include "FlightController.h"
 //
+#include "DSP_Constants.h"
 #include "FC_Config.h"
+#include "FC_NC_Filter.h"
 #include "SignalFiltering.h"
 
 #include <string.h>
@@ -68,6 +70,12 @@ float imuAccelZOutputBuff[FC_RC_AXIS_FILTER_ORDER];
 float imuAccelFilterCoeffsA[FC_RC_AXIS_FILTER_ORDER];
 float imuAccelFilterCoeffsB[FC_RC_AXIS_FILTER_ORDER + 1];
 
+/*
+** Attitude Estimation
+*/
+
+FC_NC_Instance_f32 complementaryFilter;
+
 void FC_DataAcquisitionInit()
 {
 #if FC_RC_AXIS_FILTER_ENABLE
@@ -122,7 +130,7 @@ void FC_DataAcquisitionInit()
 	FC_RC_Data.Aux2 = 0.0f;
 	FC_RC_Data.Aux3 = 0.0f;
 	FC_RC_Data.Aux4 = 0.0f;
-	FC_RC_UpdateAxisChannels(0, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT);
+	FC_RC_UpdateAxesChannels(0, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT);
 
 	FC_IMU_Data.AccelX   = 0.0f;
 	FC_IMU_Data.AccelY   = 0.0f;
@@ -131,16 +139,22 @@ void FC_DataAcquisitionInit()
 	FC_IMU_Data.GyroY    = 0.0f;
 	FC_IMU_Data.GyroZ    = 0.0f;
 	FC_IMU_Data.Attitude = (DSP_Quaternion_f32) {1, 0, 0, 0};
+
+	FC_NC_Init_f32(&complementaryFilter, FC_NC_GAIN, FC_NC_SLERP_THRESHOLD, FC_NC_THRESHOLD1, FC_NC_THRESHOLD2);
 }
 
 
-void FC_RC_UpdateAxisChannels(int throttle, int pitch, int roll, int yaw)
+void FC_RC_UpdateAxesChannels(const int throttle, const int roll, const int pitch, const int yaw)
 {
-	FC_RC_Data.Pitch = (float)(pitch - FC_CHANNEL_MIDPOINT) * FC_PITCH_LINEAR_RATE / FC_CHANNEL_MIDPOINT;  // deg/s
-	FC_RC_Data.Roll  = (float)(roll - FC_CHANNEL_MIDPOINT) * FC_ROLL_LINEAR_RATE / FC_CHANNEL_MIDPOINT;    // deg/s
-	FC_RC_Data.Yaw   = (float)(yaw - FC_CHANNEL_MIDPOINT) * FC_YAW_LINEAR_RATE / FC_CHANNEL_MIDPOINT;      // deg/s
+	FC_RC_Data.Pitch =
+	  (pitch - FC_CHANNEL_MIDPOINT) * FC_PITCH_LINEAR_RATE / FC_CHANNEL_MIDPOINT * DEG_TO_RAD_F32 * FC_PITCH_DIRECTION;
+	FC_RC_Data.Roll =
+	  (roll - FC_CHANNEL_MIDPOINT) * FC_ROLL_LINEAR_RATE / FC_CHANNEL_MIDPOINT * DEG_TO_RAD_F32 * FC_ROLL_DIRECTION;
+	FC_RC_Data.Yaw =
+	  (yaw - FC_CHANNEL_MIDPOINT) * FC_YAW_LINEAR_RATE / FC_CHANNEL_MIDPOINT * DEG_TO_RAD_F32 * FC_YAW_DIRECTION;
+
 	FC_RC_Data.Throttle =
-	  (float)(throttle - FC_CHANNEL_MIN) * FC_THROTTLE_RESOLUTION / (FC_CHANNEL_MAX - FC_CHANNEL_MIN);
+	  (throttle - FC_CHANNEL_MIN) * 100.0f / (FC_CHANNEL_MAX - FC_CHANNEL_MIN) * FC_THROTTLE_DIRECTION;
 
 #if FC_RC_AXIS_FILTER_ENABLE
 	FC_RC_Data.Pitch    = DSP_IIR_RT_Update_f32(&rcAxisPitchFilter, FC_RC_Data.Pitch);
@@ -180,8 +194,7 @@ void FC_RC_SetFilter(const float* filterCoeffsNumerator, const float* filterCoef
 #endif
 }
 
-
-void FC_IMU_UpdateGyro(const float pitchRate, const float rollRate, const float yawRate, const float dt)
+void FC_IMU_UpdateGyro(const float rollRate, const float pitchRate, const float yawRate, const float dt)
 {
 #if FC_IMU_GYRO_FILTER_ENABLE
 	FC_IMU_Data.GyroX = DSP_IIR_RT_Update_f32(&imuGyroXFilter, rollRate);
@@ -216,6 +229,8 @@ void FC_IMU_UpdateAccel(const float accelX, const float accelY, const float acce
 	FC_IMU_Data.AccelY = accelY;
 	FC_IMU_Data.AccelZ = accelZ;
 #endif
+
+	FC_NC_FilterUpdate_f32(&complementaryFilter, &FC_IMU_Data, dt);
 }
 
 void FC_IMU_SetAccelFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator)

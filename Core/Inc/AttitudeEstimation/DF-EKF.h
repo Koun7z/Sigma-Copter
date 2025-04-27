@@ -5,7 +5,7 @@
 #ifndef DF_EKF_H
 #define DF_EKF_H
 
-#include "../FC_CommonTypes.h"
+#include "FC_CommonTypes.h"
 
 typedef struct
 {

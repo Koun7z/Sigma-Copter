@@ -11,10 +11,10 @@
 
 typedef struct
 {
-	int Motor1;  // FR
-	int Motor2;  // FL
-	int Motor3;  // RR
-	int Motor4;  // RL
+	float Motor1;  // FR
+	float Motor2;  // FL
+	float Motor3;  // RR
+	float Motor4;  // RL
 } FC_MotorThrust;
 
 typedef struct
