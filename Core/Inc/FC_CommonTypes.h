@@ -43,6 +43,7 @@ typedef struct
 	float AccelZ;
 
 	DSP_Quaternion_f32 Attitude;
+	DSP_Quaternion_f32 AttitudeTarget;
 } FC_IMU_Data_Instance;
 
 #endif //FC_COMMONTYPES_H

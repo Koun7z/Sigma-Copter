@@ -31,7 +31,7 @@ void FC_NC_FilterUpdate_f32(const FC_NC_Instance_f32* filter, FC_IMU_Data_Instan
 	float a_k = imuData->AccelZ;
 
 	// Integrating local angular velocity
-	const DSP_Quaternion_f32 omega_l = {.r = 0, .i = p, .j = q, .k = r};
+	const DSP_Quaternion_f32 omega_l = {.r = 0.0f, .i = p, .j = q, .k = r};
 
 	DSP_Quaternion_f32 delta_q_gyro;
 

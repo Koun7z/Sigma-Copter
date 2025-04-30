@@ -13,7 +13,7 @@
 #include "ProcessControl.h"
 
 #include <stdint.h>
-
+#include <stddef.h>
 /**
  * @Brief Structure holding calculated thrust of all motors as a float value between 0 - 100
  */
@@ -28,6 +28,14 @@ extern FC_RC_Data_Instance FC_RC_Data;
  * @Brief Structure holding filtered IMU data
  */
 extern FC_IMU_Data_Instance FC_IMU_Data;
+
+
+/**
+ * @brief      Debug message callback
+ * @param[in]  msg  Debug message string
+ * @param[in]  len  N-characters
+ */
+void FC_OnDebugLog(const char* msg, size_t len);
 
 /**
  * @brief   Initializes flight controller
@@ -102,7 +110,7 @@ void FC_RC_UpdateArmStatus(bool armStatus);
 void FC_RC_SetFilter(const float* filterCoeffsNumerator, const float* filterCoeffsDenominator);
 
 /**
-* @brief       Used to update gyroscope measurements.
+ * @brief       Used to update gyroscope measurements.
  *			   Should be called at least once before every FC_Update().
  *			   The function performs data filtering based on settings in FC_Config.h file.
  *			   Function should be called before accelerometer update as it also performs EKF prediction step.

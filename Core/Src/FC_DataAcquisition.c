@@ -9,6 +9,7 @@
 #include "FC_NC_Filter.h"
 #include "SignalFiltering.h"
 
+#include <math.h>
 #include <string.h>
 
 /*
@@ -76,6 +77,12 @@ float imuAccelFilterCoeffsB[FC_RC_AXIS_FILTER_ORDER + 1];
 
 FC_NC_Instance_f32 complementaryFilter;
 
+
+static float deadZone(const float in, const float deadZone)
+{
+	return fabsf(in) < deadZone ? 0 : in;
+}
+
 void FC_DataAcquisitionInit()
 {
 #if FC_RC_AXIS_FILTER_ENABLE
@@ -132,13 +139,14 @@ void FC_DataAcquisitionInit()
 	FC_RC_Data.Aux4 = 0.0f;
 	FC_RC_UpdateAxesChannels(0, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT);
 
-	FC_IMU_Data.AccelX   = 0.0f;
-	FC_IMU_Data.AccelY   = 0.0f;
-	FC_IMU_Data.AccelZ   = 0.0f;
-	FC_IMU_Data.GyroX    = 0.0f;
-	FC_IMU_Data.GyroY    = 0.0f;
-	FC_IMU_Data.GyroZ    = 0.0f;
-	FC_IMU_Data.Attitude = (DSP_Quaternion_f32) {1, 0, 0, 0};
+	FC_IMU_Data.AccelX         = 0.0f;
+	FC_IMU_Data.AccelY         = 0.0f;
+	FC_IMU_Data.AccelZ         = 0.0f;
+	FC_IMU_Data.GyroX          = 0.0f;
+	FC_IMU_Data.GyroY          = 0.0f;
+	FC_IMU_Data.GyroZ          = 0.0f;
+	FC_IMU_Data.Attitude       = (DSP_Quaternion_f32) {1, 0, 0, 0};
+	FC_IMU_Data.AttitudeTarget = (DSP_Quaternion_f32) {1, 0, 0, 0};
 
 	FC_NC_Init_f32(&complementaryFilter, FC_NC_GAIN, FC_NC_SLERP_THRESHOLD, FC_NC_THRESHOLD1, FC_NC_THRESHOLD2);
 }
@@ -146,15 +154,24 @@ void FC_DataAcquisitionInit()
 
 void FC_RC_UpdateAxesChannels(const int throttle, const int roll, const int pitch, const int yaw)
 {
-	FC_RC_Data.Pitch =
-	  (pitch - FC_CHANNEL_MIDPOINT) * FC_PITCH_LINEAR_RATE / FC_CHANNEL_MIDPOINT * DEG_TO_RAD_F32 * FC_PITCH_DIRECTION;
+
+	//TODO: Make the conversion in 2 steps so you can implement stick dead zone as % of stick deflection
+
 	FC_RC_Data.Roll =
 	  (roll - FC_CHANNEL_MIDPOINT) * FC_ROLL_LINEAR_RATE / FC_CHANNEL_MIDPOINT * DEG_TO_RAD_F32 * FC_ROLL_DIRECTION;
+	FC_RC_Data.Pitch =
+	  (pitch - FC_CHANNEL_MIDPOINT) * FC_PITCH_LINEAR_RATE / FC_CHANNEL_MIDPOINT * DEG_TO_RAD_F32 * FC_PITCH_DIRECTION;
 	FC_RC_Data.Yaw =
 	  (yaw - FC_CHANNEL_MIDPOINT) * FC_YAW_LINEAR_RATE / FC_CHANNEL_MIDPOINT * DEG_TO_RAD_F32 * FC_YAW_DIRECTION;
 
+	FC_RC_Data.Roll  = deadZone(FC_RC_Data.Roll, FC_ROLL_DEAD_ZONE);
+	FC_RC_Data.Pitch = deadZone(FC_RC_Data.Pitch, FC_PITCH_DEAD_ZONE);
+	FC_RC_Data.Yaw   = deadZone(FC_RC_Data.Yaw, FC_YAW_DEAD_ZONE);
+
 	FC_RC_Data.Throttle =
 	  (throttle - FC_CHANNEL_MIN) * 100.0f / (FC_CHANNEL_MAX - FC_CHANNEL_MIN) * FC_THROTTLE_DIRECTION;
+
+	FC_RC_Data.Throttle = deadZone(FC_RC_Data.Throttle, FC_RC_THROTTLE_DEAD_ZONE);
 
 #if FC_RC_AXIS_FILTER_ENABLE
 	FC_RC_Data.Pitch    = DSP_IIR_RT_Update_f32(&rcAxisPitchFilter, FC_RC_Data.Pitch);
