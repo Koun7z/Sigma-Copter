@@ -29,6 +29,7 @@ extern FC_RC_Data_Instance FC_RC_Data;
  */
 extern FC_IMU_Data_Instance FC_IMU_Data;
 
+extern bool FC_EmergencyDisarmStatus;
 
 /**
  * @brief      Debug message callback
