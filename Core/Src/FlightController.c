@@ -30,6 +30,32 @@ FC_IMU_Data_Instance FC_IMU_Data;
 
 bool FC_EmergencyDisarmStatus = false;
 
+static void serialDebug(float dt)
+{
+#if FC_SERIAL_DEBUG
+	static float debug_timer = 0;
+	debug_timer             += dt;
+	if(debug_timer > 1.0f / FC_SERIAL_REPORT_RATE)
+	{
+		debug_timer = 0;
+		FC_DEBUG_LOG("FC_Attitude: %f, %f, %f, %f \n\r", FC_IMU_Data.Attitude.r, FC_IMU_Data.Attitude.i,
+					 FC_IMU_Data.Attitude.j, FC_IMU_Data.Attitude.k);
+
+		FC_DEBUG_LOG("FC_TAttitude: %f, %f, %f, %f \n\r", FC_IMU_Data.AttitudeTarget.r, FC_IMU_Data.AttitudeTarget.i,
+					 FC_IMU_Data.AttitudeTarget.j, FC_IMU_Data.AttitudeTarget.k);
+
+		FC_DEBUG_LOG("FC_RC_AXES: %f, %f, %f, %f \n\r", FC_RC_Data.Throttle, FC_RC_Data.Roll, FC_RC_Data.Pitch,
+					 FC_RC_Data.Yaw);
+
+		FC_DEBUG_LOG("FC_Thrust: %f, %f, %f, %f \n\r", FC_GlobalThrust.Motor1, FC_GlobalThrust.Motor2,
+					 FC_GlobalThrust.Motor3, FC_GlobalThrust.Motor4);
+
+		FC_DEBUG_LOG("FC_TargetV: %f, %f, %f \n\r", targetV[0], targetV[1], targetV[2]);
+	}
+#endif
+}
+
+
 uint8_t FC_Init()
 {
 	FC_GlobalThrust.Motor1 = 0;
@@ -40,17 +66,17 @@ uint8_t FC_Init()
 
 	DSP_PID_Init_f32(&FC_RollRatePID, FC_ROLL_RATE_Kp, FC_ROLL_RATE_Ti, FC_ROLL_RATE_Td, FC_ROLL_RATE_N, FC_PID_Ts);
 	DSP_PID_SetSaturation_f32(&FC_RollRatePID, -FC_RATE_PID_SATURATION, FC_RATE_PID_SATURATION,
-	                          FC_RATE_PID_SATURATION_Tt, FC_PID_Ts);
+	                          FC_ROLL_RATE_Tt, FC_PID_Ts);
 
 
 	DSP_PID_Init_f32(&FC_PitchRatePID, FC_PITCH_RATE_Kp, FC_PITCH_RATE_Ti, FC_PITCH_RATE_Td, FC_PITCH_RATE_N,
 	                 FC_PID_Ts);
 	DSP_PID_SetSaturation_f32(&FC_PitchRatePID, -FC_RATE_PID_SATURATION, FC_RATE_PID_SATURATION,
-	                          FC_RATE_PID_SATURATION_Tt, FC_PID_Ts);
+	                          FC_PITCH_RATE_Tt, FC_PID_Ts);
 
 	DSP_PID_Init_f32(&FC_YawRatePID, FC_YAW_RATE_Kp, FC_YAW_RATE_Ti, FC_YAW_RATE_Td, FC_YAW_RATE_N, FC_PID_Ts);
 	DSP_PID_SetSaturation_f32(&FC_YawRatePID, -FC_RATE_PID_SATURATION, FC_RATE_PID_SATURATION,
-	                          FC_RATE_PID_SATURATION_Tt, FC_PID_Ts);
+	                          FC_YAW_RATE_Tt, FC_PID_Ts);
 
 	FC_DataAcquisitionInit();
 	return 0;
@@ -58,31 +84,7 @@ uint8_t FC_Init()
 
 void FC_Update(const float dt)
 {
-	// Todo: TEMP
-	float targetV[3];
-	FC_GetTargetVelocity(&FC_IMU_Data, targetV);
-    targetV[2] = 0.0f;
-#if FC_SERIAL_DEBUG
-	static float debug_timer = 0;
-	debug_timer             += dt;
-	if(debug_timer > 1.0f / FC_SERIAL_REPORT_RATE)
-	{
-		debug_timer = 0;
-		FC_DEBUG_LOG("FC_Attitude: %f, %f, %f, %f \n\r", FC_IMU_Data.Attitude.r, FC_IMU_Data.Attitude.i,
-		             FC_IMU_Data.Attitude.j, FC_IMU_Data.Attitude.k);
-
-		FC_DEBUG_LOG("FC_TAttitude: %f, %f, %f, %f \n\r", FC_IMU_Data.AttitudeTarget.r, FC_IMU_Data.AttitudeTarget.i,
-		             FC_IMU_Data.AttitudeTarget.j, FC_IMU_Data.AttitudeTarget.k);
-
-		FC_DEBUG_LOG("FC_RC_AXES: %f, %f, %f, %f \n\r", FC_RC_Data.Throttle, FC_RC_Data.Roll, FC_RC_Data.Pitch,
-		             FC_RC_Data.Yaw);
-
-		FC_DEBUG_LOG("FC_Thrust: %f, %f, %f, %f \n\r", FC_GlobalThrust.Motor1, FC_GlobalThrust.Motor2,
-		             FC_GlobalThrust.Motor3, FC_GlobalThrust.Motor4);
-
-		FC_DEBUG_LOG("FC_TargetV: %f, %f, %f \n\r", targetV[0], targetV[1], targetV[2]);
-	}
-#endif
+	serialDebug(dt);
 
 	if(FC_EmergencyDisarmStatus || !FC_RC_Data.Arm)
 	{

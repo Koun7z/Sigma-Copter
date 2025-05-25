@@ -116,23 +116,24 @@
 */
 
 #define FC_RATE_PID_SATURATION    30.0f
-#define FC_RATE_PID_SATURATION_Tt 2.0f
-
 #define FC_RATE_PID_DeadZone 0.5f
 
 #define FC_ROLL_RATE_Kp 8.0f
 #define FC_ROLL_RATE_Ti 0.2f
 #define FC_ROLL_RATE_Td 0.03f
+#define FC_ROLL_RATE_Tt FC_ROLL_RATE_Ti
 #define FC_ROLL_RATE_N  10.0f
 
 #define FC_PITCH_RATE_Kp 8.0f
 #define FC_PITCH_RATE_Ti 0.2f
 #define FC_PITCH_RATE_Td 0.03f
+#define FC_PITCH_RATE_Tt FC_PITCH_RATE_Ti
 #define FC_PITCH_RATE_N  10.0f
 
 #define FC_YAW_RATE_Kp 8.0f
 #define FC_YAW_RATE_Ti 0.2f
 #define FC_YAW_RATE_Td 0.0f
+#define FC_YAW_RATE_Tt FC_YAW_RATE_Ti
 #define FC_YAW_RATE_N  10.0f
 
 
