@@ -57,19 +57,28 @@ void FC_NC_FilterUpdate_f32(const FC_NC_Instance_f32* filter, FC_IMU_Data_Instan
 
 	DSP_QT_RotateVector_f32(G_pred, G_pred, &q_gyro_LG);
 
+
 	// Calculating accelerometer correction
 	DSP_Quaternion_f32 delta_q_acc;
-	const float sq_gk = sqrtf(2.0f * (G_pred[2] + 1.0f));  //<- TODO: Potential div-0
-
-	if(sq_gk < 1e-6f)  // Skip prediction in this step if div-o err could occur (temp solution)
+	if (G_pred[2] >= 0.0f)
 	{
-		return;
+		const float sq_gk = sqrtf(2.0f * (G_pred[2] + 1.0f));
+
+		delta_q_acc.r = sqrtf((G_pred[2] + 1.0f) / 2.0f);
+		delta_q_acc.i = -G_pred[1] / sq_gk;
+		delta_q_acc.j = G_pred[0] / sq_gk;
+		delta_q_acc.k = 0.0f;
+	}
+	else
+	{
+		const float sq_gk = sqrtf(2.0f * (1.0f - G_pred[2]));
+
+		delta_q_acc.r = -G_pred[1] / sq_gk;
+		delta_q_acc.i = sqrtf((1.0f - G_pred[2]) / 2.0f);
+		delta_q_acc.j = 0.0f;
+		delta_q_acc.k = G_pred[0] / sq_gk;
 	}
 
-	delta_q_acc.r = sqrtf((G_pred[2] + 1.0f) / 2.0f);
-	delta_q_acc.i = -G_pred[1] / sq_gk;
-	delta_q_acc.j = G_pred[0] / sq_gk;
-	delta_q_acc.k = 0.0f;
 
 	// Simple adaptive gain
 	float gain          = filter->Gain;
