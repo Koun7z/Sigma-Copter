@@ -29,7 +29,6 @@ extern FC_RC_Data_Instance FC_RC_Data;
  */
 extern FC_IMU_Data_Instance FC_IMU_Data;
 
-extern bool FC_EmergencyDisarmStatus;
 
 /**
  * @brief      Debug message callback
@@ -55,15 +54,22 @@ uint8_t FC_Init(void);
 void FC_Update(float dt);
 
 /**
- * @brief  Emergency disarm function, it prevents main loop from executing
- *         and sets all motor power to 0 until rearmed with corresponding function
+ * @brief      Emergency disarm function, it prevents main loop from executing
+ *             and sets all motor power to 0 until rearmed with corresponding function
+ * @param[in] reason - cause of emergency
  */
-void FC_EmergencyDisarm(void);
+void FC_EmergencyDisarm(FC_StatusTypeDef reason);
 
 /**
  * @brief  Disables emergency disarm status
  */
-void FC_EmergencyRearm(void);
+void FC_ClearEmergency(void);
+
+/**
+ * @brief	Returns current status of operation
+ * @retval  FC_Status
+ */
+FC_StatusTypeDef FC_GetStatus(void);
 
 /**
  * @brief  Called internally by FC_Init() function.

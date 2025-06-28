@@ -10,7 +10,7 @@
 /*
 ** Serial port debug
 */
-#define FC_SERIAL_DEBUG       0
+#define FC_SERIAL_DEBUG       1
 #define FC_SERIAL_REPORT_RATE 30
 
 /*
@@ -77,7 +77,8 @@
 */
 
 // Nonlinear complementary filter config
-#define FC_NC_GAIN            0.05f
+#define FC_NC_ACC_GAIN        0.05f
+#define FC_NC_MAG_GAIN        1.0f
 #define FC_NC_SLERP_THRESHOLD 0.90f
 #define FC_NC_THRESHOLD1      0.1f
 #define FC_NC_THRESHOLD2      0.2f
@@ -87,8 +88,8 @@
 ** Common PID parameres
 */
 
-#define FC_PID_Ts 0.005f // Update should be called every specified interval
-#define FC_THROTTLE_GAIN_COMP 5.0f // Compensation for thrust to throttle nonlinearity
+#define FC_PID_Ts             0.005f  // Update should be called every specified interval
+#define FC_THROTTLE_GAIN_COMP 5.0f    // Compensation for thrust to throttle nonlinearity
 
 /*
 ** Position PID parameres
@@ -115,8 +116,8 @@
 ** Rate PID parameres
 */
 
-#define FC_RATE_PID_SATURATION    30.0f
-#define FC_RATE_PID_DeadZone 0.5f
+#define FC_RATE_PID_SATURATION 30.0f
+#define FC_RATE_PID_DeadZone   0.5f
 
 #define FC_ROLL_RATE_Kp 8.0f
 #define FC_ROLL_RATE_Ti 0.2f
@@ -135,7 +136,6 @@
 #define FC_YAW_RATE_Td 0.0f
 #define FC_YAW_RATE_Tt FC_YAW_RATE_Ti
 #define FC_YAW_RATE_N  10.0f
-
 
 
 #endif  // CONFIG_H

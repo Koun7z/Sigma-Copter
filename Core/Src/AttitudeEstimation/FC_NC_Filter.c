@@ -3,15 +3,19 @@
 //
 #include "FC_NC_Filter.h"
 
+#include "FlightController.h"
+
 #include <math.h>
 
 uint8_t FC_NC_Init_f32(FC_NC_Instance_f32* instance,
-                       const float Gain,
+                       const float AccGain,
+                       const float MagGain,
                        const float SLERP_Threshold,
                        const float Threshold1,
                        const float Threshold2)
 {
-	instance->Gain            = Gain;
+	instance->AccGain         = AccGain;
+	instance->MagGain         = MagGain;
 	instance->SLERP_Threshold = SLERP_Threshold;
 	instance->Threshold1      = Threshold1;
 	instance->Threshold2      = Threshold2;
@@ -60,7 +64,7 @@ void FC_NC_FilterUpdate_f32(const FC_NC_Instance_f32* filter, FC_IMU_Data_Instan
 
 	// Calculating accelerometer correction
 	DSP_Quaternion_f32 delta_q_acc;
-	if (G_pred[2] >= 0.0f)
+	if(G_pred[2] >= 0.0f)
 	{
 		const float sq_gk = sqrtf(2.0f * (G_pred[2] + 1.0f));
 
@@ -81,36 +85,89 @@ void FC_NC_FilterUpdate_f32(const FC_NC_Instance_f32* filter, FC_IMU_Data_Instan
 
 
 	// Simple adaptive gain
-	float gain          = filter->Gain;
+	float acc_gain          = filter->AccGain;
 	const float acc_err = fabsf(acc_norm - 1.0f);
 
 	if(acc_err > filter->Threshold2)
 	{
-		gain = 0.0f;
+		acc_gain = 0.0f;
 	}
 	else if(acc_err > filter->Threshold1)
 	{
-		gain *= (filter->Threshold2 - acc_err) / filter->Threshold1;
+		acc_gain *= (filter->Threshold2 - acc_err) / filter->Threshold1;
 	}
 
 	// Applying gain to accelerometer correction
 	if(delta_q_acc.r > filter->SLERP_Threshold)
 	{
-		DSP_QT_Scale_f32(&delta_q_acc, &delta_q_acc, gain);
-		delta_q_acc.r += 1.0f - gain;
+		DSP_QT_Scale_f32(&delta_q_acc, &delta_q_acc, acc_gain);
+		delta_q_acc.r += 1.0f - acc_gain;
 	}
 	else
 	{
 		const float omega_slerp = acosf(delta_q_acc.r);
 		const float sin_om      = sinf(omega_slerp);
 
-		const float scale = sinf(gain * omega_slerp) / sin_om;
+		const float scale = sinf(acc_gain * omega_slerp) / sin_om;
 		DSP_QT_Scale_f32(&delta_q_acc, &delta_q_acc, scale);
 
-		delta_q_acc.r += sinf((1.0f - gain) * omega_slerp) / sin_om;
+		delta_q_acc.r += sinf((1.0f - acc_gain) * omega_slerp) / sin_om;
 	}
 
-	// Applying correction
+	// Applying accelerometer correction
 	DSP_QT_Multiply_f32(&imuData->Attitude, &q_gyro, &delta_q_acc);
+	DSP_QT_Normalize_f32(&imuData->Attitude, &imuData->Attitude);
+
+	/*
+	** Magnetometer yaw correction
+	** By default magnetometer readings are set to (1, 0, 0)
+	** to remove any yaw changes if actual sensor measurements are unavailable.
+	*/
+
+	DSP_Quaternion_f32 q_acc_LG;
+	DSP_QT_Conjugate_f32(&q_acc_LG, &imuData->Attitude);
+
+	float l[3] = {imuData->MagX, imuData->MagY, imuData->MagZ};
+
+	DSP_QT_RotateVector_f32(l, l, &q_acc_LG);
+
+	DSP_Quaternion_f32 delta_q_mag;
+	const float gamma    = sqrtf(l[0] * l[0] + l[1] * l[1]);
+	const float sq_gamma = sqrtf(gamma);
+
+	if(l[0] >= 0)
+	{
+		delta_q_mag.r = sqrtf(gamma + l[0] * sq_gamma) / (sqrtf(2.0f) * sq_gamma);
+		delta_q_mag.i = 0.0f;
+		delta_q_mag.j = 0.0f;
+		delta_q_mag.k = l[1] / sqrtf(2.0f * (gamma + l[0] * sq_gamma));
+	}
+	else
+	{
+		delta_q_mag.r = l[1] / sqrtf(2.0f * (gamma - l[0] * sq_gamma));
+		delta_q_mag.i = 0.0f;
+		delta_q_mag.j = 0.0f;
+		delta_q_mag.k = sqrtf(gamma - l[0] * sq_gamma) / (sqrtf(2.0f) * sq_gamma);
+	}
+
+	if(delta_q_mag.r > filter->SLERP_Threshold)
+	{
+		DSP_QT_Scale_f32(&delta_q_mag, &delta_q_mag, filter->MagGain);
+		delta_q_mag.r += 1.0f - filter->MagGain;
+	}
+	else
+	{
+		const float omega_slerp = acosf(delta_q_mag.r);
+		const float sin_om      = sinf(omega_slerp);
+
+		const float scale = sinf(filter->MagGain * omega_slerp) / sin_om;
+		DSP_QT_Scale_f32(&delta_q_mag, &delta_q_mag, scale);
+
+		delta_q_mag.r += sinf((1.0f - filter->MagGain) * omega_slerp) / sin_om;
+	}
+
+
+	// Applying magnetometer correction
+	DSP_QT_Multiply_f32(&imuData->Attitude, &imuData->Attitude, &delta_q_mag);
 	DSP_QT_Normalize_f32(&imuData->Attitude, &imuData->Attitude);
 }

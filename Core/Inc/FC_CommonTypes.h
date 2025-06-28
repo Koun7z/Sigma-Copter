@@ -42,8 +42,20 @@ typedef struct
 	float AccelY;
 	float AccelZ;
 
+	float MagX;
+	float MagY;
+	float MagZ;
+
 	DSP_Quaternion_f32 Attitude;
 	DSP_Quaternion_f32 AttitudeTarget;
 } FC_IMU_Data_Instance;
+
+typedef enum
+{
+	FC_Good = 0,
+	FC_ManualDisarm = 1,
+	FC_BatteryLow = 2,
+	FC_ConnectionLost = 3
+} FC_StatusTypeDef;
 
 #endif //FC_COMMONTYPES_H

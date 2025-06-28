@@ -13,8 +13,8 @@
 
 #if FC_SERIAL_DEBUG
 #  include <stdio.h>
-char debugBuff[100];
-#  define FC_DEBUG_LOG(...) FC_OnDebugLog(debugBuff, snprintf(debugBuff, 99, __VA_ARGS__));
+char debugBuff[128];
+#  define FC_DEBUG_LOG(...) FC_OnDebugLog(debugBuff, snprintf(debugBuff, 127, __VA_ARGS__));
 #else
 #  define FC_DEBUG_LOG(...)
 #endif
@@ -28,7 +28,7 @@ FC_MotorThrust FC_GlobalThrust;
 FC_RC_Data_Instance FC_RC_Data;
 FC_IMU_Data_Instance FC_IMU_Data;
 
-bool FC_EmergencyDisarmStatus = false;
+FC_StatusTypeDef emergencyStatus = FC_Good;
 
 static void serialDebug(float dt)
 {
@@ -49,6 +49,9 @@ static void serialDebug(float dt)
 
 		FC_DEBUG_LOG("FC_Thrust: %f, %f, %f, %f \n\r", FC_GlobalThrust.Motor1, FC_GlobalThrust.Motor2,
 					 FC_GlobalThrust.Motor3, FC_GlobalThrust.Motor4);
+
+		float targetV[3];
+		FC_GetTargetVelocity(&FC_IMU_Data, targetV);
 
 		FC_DEBUG_LOG("FC_TargetV: %f, %f, %f \n\r", targetV[0], targetV[1], targetV[2]);
 	}
@@ -86,7 +89,7 @@ void FC_Update(const float dt)
 {
 	serialDebug(dt);
 
-	if(FC_EmergencyDisarmStatus || !FC_RC_Data.Arm)
+	if(emergencyStatus || !FC_RC_Data.Arm)
 	{
 		FC_GlobalThrust.Motor1 = 0.0f;
 		FC_GlobalThrust.Motor2 = 0.0f;
@@ -176,19 +179,31 @@ void FC_Update(const float dt)
 	FC_GlobalThrust.Motor4 = DSP_Clamp_f32(m4, FC_IDLE_THROTTLE, 100.0f) * (FC_MAX_THROTTLE / 100.0f);
 }
 
-void FC_EmergencyDisarm()
+void FC_EmergencyDisarm(const FC_StatusTypeDef reason)
 {
-	FC_EmergencyDisarmStatus = true;
+	emergencyStatus = reason;
 
 	FC_GlobalThrust.Motor1 = 0.0f;
 	FC_GlobalThrust.Motor2 = 0.0f;
 	FC_GlobalThrust.Motor3 = 0.0f;
 	FC_GlobalThrust.Motor4 = 0.0f;
+
+	// FC_Good status is for no error, so if you call this function there should be a different reason
+	if (reason == FC_Good)
+	{
+		emergencyStatus = FC_ManualDisarm;
+	}
+
 }
 
-void FC_EmergencyRearm()
+void FC_ClearEmergency(void)
 {
-	FC_EmergencyDisarmStatus = false;
+	emergencyStatus = FC_Good;
+}
+
+FC_StatusTypeDef FC_GetStatus(void)
+{
+	return emergencyStatus;
 }
 
 void __attribute__((weak)) FC_OnDebugLog(const char* msg, size_t len) {}

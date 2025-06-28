@@ -126,6 +126,8 @@ void FC_DataAcquisitionInit()
 	                    imuAccelZInputBuff, imuAccelZOutputBuff);
 #endif
 
+
+	// RC data initailization
 	FC_RC_Data.Arm  = false;
 	FC_RC_Data.Aux1 = 0.0f;
 	FC_RC_Data.Aux2 = 0.0f;
@@ -133,16 +135,24 @@ void FC_DataAcquisitionInit()
 	FC_RC_Data.Aux4 = 0.0f;
 	FC_RC_UpdateAxesChannels(0, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT, FC_CHANNEL_MIDPOINT);
 
-	FC_IMU_Data.AccelX         = 0.0f;
-	FC_IMU_Data.AccelY         = 0.0f;
-	FC_IMU_Data.AccelZ         = 0.0f;
-	FC_IMU_Data.GyroX          = 0.0f;
-	FC_IMU_Data.GyroY          = 0.0f;
-	FC_IMU_Data.GyroZ          = 0.0f;
+	// IMU data initialization
+	FC_IMU_Data.AccelX = 0.0f;
+	FC_IMU_Data.AccelY = 0.0f;
+	FC_IMU_Data.AccelZ = 1.0f;
+	FC_IMU_Data.GyroX  = 0.0f;
+	FC_IMU_Data.GyroY  = 0.0f;
+	FC_IMU_Data.GyroZ  = 0.0f;
+	FC_IMU_Data.MagX   = 1.0f;
+	FC_IMU_Data.MagY   = 0.0f;
+	FC_IMU_Data.MagZ   = 0.0f;
+
+	// Initial attitude
 	FC_IMU_Data.Attitude       = (DSP_Quaternion_f32) {1, 0, 0, 0};
 	FC_IMU_Data.AttitudeTarget = (DSP_Quaternion_f32) {1, 0, 0, 0};
 
-	FC_NC_Init_f32(&complementaryFilter, FC_NC_GAIN, FC_NC_SLERP_THRESHOLD, FC_NC_THRESHOLD1, FC_NC_THRESHOLD2);
+	// Attitude estimator initialization
+	FC_NC_Init_f32(&complementaryFilter, FC_NC_ACC_GAIN, FC_NC_MAG_GAIN, FC_NC_SLERP_THRESHOLD, FC_NC_THRESHOLD1,
+	               FC_NC_THRESHOLD2);
 }
 
 
